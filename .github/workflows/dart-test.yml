@@ -1,0 +1,25 @@
+# Dart 파이프라인 테스트 (tracker 단위 테스트 + Python 과 같은 골든 결과인지)
+# opencv_dart 가 OpenCV 를 소스에서 컴파일하므로 처음엔 20~40분 걸린다.
+# GitHub → Actions → "Dart test" → Run workflow 로 필요할 때 수동 실행한다.
+name: Dart test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  flutter-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang pkg-config
+        working-directory: .
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test

@@ -7,7 +7,7 @@
 | `main` | 항상 빌드·테스트가 통과하는 상태. 직접 push 금지 |
 | `feat/<파트>-<내용>` | 기능 개발. 예: `feat/edge-auto-canny`, `feat/tracker-kalman`, `feat/enhance-color` |
 | `fix/<내용>` | 버그 수정 |
-| `exp/<이름>-<내용>` | 실험용 (merge 안 해도 됨). 결과는 PR 설명이나 `python/results/` 요약으로 공유 |
+| `exp/<이름>-<내용>` | 실험용 (merge 안 해도 됨). 결과는 PR 설명이나 `docs/실험기록/` 요약으로 공유 (`python/results/` 는 git 제외) |
 
 ```bash
 git switch main && git pull
@@ -24,9 +24,11 @@ git push -u origin feat/edge-auto-canny
 
 ## Pull Request 체크리스트
 
+PR 을 열면 `.github/pull_request_template.md` 가 자동으로 채워진다. PR 마다 GitHub Actions 가 `pytest` 와 `flutter analyze` 를 돌리고, 실패하면 merge 전에 고친다.
+
 - [ ] `cd python && pytest` 통과
 - [ ] `cd app && flutter analyze` 경고 없음
-- [ ] 알고리즘을 바꿨다면 Python 과 Dart 를 **둘 다** 바꿨다 (파라미터 값도 동일하게)
+- [ ] 알고리즘을 바꿨다면 Python 과 Dart 를 **둘 다** 바꿨다 (파라미터 값도 동일하게 — `tests/test_params_sync.py` 가 자동 확인)
 - [ ] 파라미터를 바꿨다면 실험 근거(성공률·처리 시간)를 PR 설명에 적었다
 
 ## 데이터
@@ -46,3 +48,9 @@ cd app && flutter test test/golden_test.dart
 ```
 
 골든 데이터를 다시 만들어야 하면 `python tools/make_golden.py`.
+
+## 이슈와 회의
+
+- 할 일은 GitHub Issues 에 **작업 / 버그 / 실험** 템플릿으로 만들고 자기 자신을 Assignee 로 지정한다.
+- 주간 회의록은 `docs/회의록/_양식.md` 를 복사해 `docs/회의록/MM-DD.md` 로 남긴다.
+- 파트별 할 일과 시작 지점은 [docs/작업가이드.md](docs/작업가이드.md) 참고.

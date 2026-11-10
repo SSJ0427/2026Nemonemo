@@ -1,0 +1,35 @@
+name: 버그
+description: 잘못 동작하거나 빌드가 안 될 때
+title: "[버그] "
+labels: ["버그"]
+body:
+  - type: dropdown
+    id: where
+    attributes:
+      label: 어디서
+      options:
+        - 앱 (실기기)
+        - 앱 빌드 / flutter test
+        - Python / Streamlit
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 증상
+      description: 어떻게 하면 생기는지, 기대한 동작과 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 환경
+      placeholder: |
+        기종 / OS 버전: 
+        flutter --version: 
+        브랜치 / 커밋: 
+  - type: textarea
+    id: log
+    attributes:
+      label: 오류 로그·스크린샷
+      render: shell

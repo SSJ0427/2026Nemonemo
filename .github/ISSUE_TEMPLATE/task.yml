@@ -1,0 +1,36 @@
+name: 작업
+description: 구현하거나 개선할 일
+title: "[작업] "
+labels: ["작업"]
+body:
+  - type: dropdown
+    id: part
+    attributes:
+      label: 파트
+      options:
+        - pre / edge (한시원)
+        - detect / tracker (신승준)
+        - warp / enhance (채성우)
+        - app / camera / eval (전성재)
+        - docs / 발표
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 할 일
+      description: 무엇을, 어느 파일에서 (예. python/scanner/edges.py 의 TODO(한시원))
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 기준
+      placeholder: |
+        - [ ] Python 구현 + 실험 결과 기록
+        - [ ] Dart 이식 + 골든 테스트 통과
+  - type: input
+    id: due
+    attributes:
+      label: 목표 날짜
+      placeholder: "11.14"

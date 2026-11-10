@@ -1,0 +1,27 @@
+name: 실험
+description: 파라미터·알고리즘 비교 실험 계획과 결과
+title: "[실험] "
+labels: ["실험"]
+body:
+  - type: input
+    id: question
+    attributes:
+      label: 알고 싶은 것
+      placeholder: "GaussianBlur 와 bilateralFilter 중 어느 쪽이 검출 성공률이 높은가"
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: 방법
+      description: 사용한 스크립트, 데이터, 바꾼 값
+      placeholder: "python experiments/edge_params.py, data/raw 40장, sigma 0.2/0.33/0.5"
+  - type: textarea
+    id: result
+    attributes:
+      label: 결과
+      description: 표나 그림. 정리본은 docs/실험기록/ 에도 남긴다
+  - type: textarea
+    id: decision
+    attributes:
+      label: 결론 / 반영 여부

@@ -2,18 +2,19 @@
 
 디지털영상처리 조별 프로젝트. 휴대폰 카메라로 문서를 비추면 실시간으로 네 꼭짓점을 찾고, 촬영하면 정면에서 본 스캔본으로 펴 준다.
 
-| 역할 | 이름 |
-|---|---|
-| 조장 · 앱 골격/카메라/통합 | 전성재 |
-| 전처리 · 엣지 검출 · 실시간 성능 | 한시원 |
-| 문서 검출 · 시간축 안정화 | 신승준 |
-| 원근 변환 · 화질 개선 · 결과 처리 | 채성우 |
+| 역할 | 이름 | GitHub |
+|---|---|---|
+| 조장 · 앱 골격/카메라/통합 | 전성재 | [@SeongJJ02](https://github.com/SeongJJ02) |
+| 전처리 · 엣지 검출 · 실시간 성능 | 한시원 | [@Si-1-Han](https://github.com/Si-1-Han) |
+| 문서 검출 · 시간축 안정화 | 신승준 | [@SSJ0427](https://github.com/SSJ0427) |
+| 원근 변환 · 화질 개선 · 결과 처리 | 채성우 | [@seongwoo02](https://github.com/seongwoo02) |
 
 ## 구조
 
 ```
 .
-├── app/                    Flutter 모바일 앱 (Android 우선, iOS 는 Mac 필요)
+├── .github/                PR·이슈 템플릿, CI (pytest · flutter analyze)
+├── app/                    Flutter 모바일 앱 (Android 우선, iOS 는 Mac 필요, 로그인 없음)
 │   └── lib/
 │       ├── pipeline/       영상처리 파이프라인 (Python 과 1:1 대응)
 │       ├── camera/         카메라 프레임 → Mat 변환, 라이브 루프 실행기
@@ -30,7 +31,10 @@
 │   ├── golden/             Python·Dart 결과 비교용 합성 이미지 + 정답
 │   ├── raw/                테스트 사진 (git 제외, 공유 드라이브 사용)
 │   └── labels.json         테스트 사진 정답 꼭짓점
-└── docs/                   계획서
+└── docs/                   계획서 · 발표 자료
+    ├── 작업가이드.md       파트별 할 일, Python → Dart 이식 절차  ← 먼저 읽기
+    ├── 실험기록/           파라미터 실험 결과 요약 (보고서 재료)
+    └── 회의록/             주간 회의록
 ```
 
 ## 처리 흐름
@@ -65,13 +69,14 @@ cd python
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-pytest                          # 14개 통과하면 OK
+pytest                          # 20개 통과하면 OK (Python↔Dart 파라미터 일치 검사 포함)
 streamlit run app_streamlit.py  # PC 데모
 ```
 
 ### Flutter 앱
 
-1. [Flutter SDK](https://docs.flutter.dev/get-started/install) 설치 (3.38 이상), Android Studio 설치
+1. [Flutter SDK](https://docs.flutter.dev/get-started/install) **stable 3.44 이상** 설치, Android Studio 설치
+   (`pubspec.lock` 이 Flutter 3.44 / Dart 3.13.7 이상을 요구한다. `flutter --version` 으로 확인, 낮으면 `flutter upgrade`)
 2. Android Studio → SDK Manager → SDK Tools 에서 **NDK (Side by side)** 와 **CMake** 체크 후 설치
 3. `flutter doctor` 로 Android toolchain 확인
 4. 휴대폰 개발자 옵션 → USB 디버깅 켜고 연결
@@ -83,7 +88,7 @@ flutter run            # 연결된 휴대폰에 설치·실행
 ```
 
 > **첫 빌드는 오래 걸린다 (10~30분).** `opencv_dart` 가 첫 빌드 때 OpenCV 를 소스에서 컴파일하기 때문이다.
-> 이후에는 캐시되어 빨라진다. `pubspec.yaml` 의 `hooks` 설정으로 필요한 모듈(imgproc, imgcodecs)만 빌드한다.
+> 이후에는 캐시되어 빨라진다. `pubspec.yaml` 맨 아래 `hooks` 설정으로 필요한 모듈(imgproc, imgcodecs)만 빌드한다.
 > `flutter run` 은 연결된 기기의 CPU 종류만 빌드하므로 `flutter build apk` 보다 빠르다.
 
 PC 에서 Dart 파이프라인만 검증할 때 (휴대폰 없이):
