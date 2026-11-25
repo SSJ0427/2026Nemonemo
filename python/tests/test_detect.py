@@ -1,15 +1,23 @@
-"""문서 검출 대안 단계(convexHull / minAreaRect) 테스트 (담당: 신승준)
+"""문서 검출 테스트 (담당: 신승준)
 
-기본 단계(approxPolyDP 4각형)가 실패하는 대표 상황을 합성 사진으로 만들어 확인한다.
+기존 4각형 근사만으로는 실패하던 가림·접힘 상황과, 문서가 아닌 물체를 잘못 잡지 않는지를 확인한다.
+장면은 experiments/detect_occlusion.py 와 같은 함수로 만든다.
 """
+import sys
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pytest
 
+from evaluate import SUCCESS_RATIO, corner_error
 from scanner import detect_edges, find_document, order_corners, preprocess
-from scanner.synthetic import DEFAULT_CORNERS, make_photo
+from scanner.synthetic import make_scene
 
-FINGER_COLOR = (70, 70, 80)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments"))
+from detect_occlusion import no_document, occlusion_scene  # noqa: E402
+
+N = 10  # 장면당 장수 (실험 스크립트는 40장)
 
 
 def detect(img: np.ndarray) -> np.ndarray | None:
@@ -18,68 +26,76 @@ def detect(img: np.ndarray) -> np.ndarray | None:
     return None if corners is None else order_corners(corners) * ratio
 
 
-def finger_on_bottom_edge(img: np.ndarray) -> np.ndarray:
-    """아래 변 가운데를 손가락이 누르고 있는 사진 → 윤곽선이 파여서 기본 단계는 실패한다."""
-    _, _, br, bl = DEFAULT_CORNERS
-    mid = ((br + bl) / 2).astype(int)
-    cv2.ellipse(img, (int(mid[0]), int(mid[1]) + 40), (45, 110), 0, 0, 360, FINGER_COLOR, -1)
+def strict_only(img: np.ndarray) -> bool:
+    """이전 방식(approxPolyDP 4각형만)으로 찾을 수 있는지"""
+    gray, _ = preprocess(img)
+    edges = detect_edges(gray)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in sorted(contours, key=cv2.contourArea, reverse=True)[:5]:
+        if cv2.contourArea(c) < 0.1 * edges.size:
+            break
+        approx = cv2.approxPolyDP(c, 0.02 * cv2.arcLength(c, True), True)
+        if len(approx) == 4 and cv2.isContourConvex(approx):
+            return True
+    return False
+
+
+@pytest.mark.parametrize("scene", ["손가락 1개 (변)", "손가락 2개 (변)", "엄지 (모서리)", "접힌 모서리"])
+def test_occluded_documents_found(scene):
+    for i in range(N):
+        img, gt = occlusion_scene(scene, i)
+        found = detect(img)
+        assert found is not None, f"{scene} #{i}: 못 찾음"
+        assert corner_error(found, gt) <= SUCCESS_RATIO, f"{scene} #{i}: 오차 {corner_error(found, gt):.3f}"
+
+
+def test_occlusion_breaks_previous_method():
+    """위 테스트가 의미 있는지: 손가락 2개 장면은 이전 방식으로는 하나도 못 찾는다"""
+    assert not any(strict_only(occlusion_scene("손가락 2개 (변)", i)[0]) for i in range(N))
+
+
+def test_team_hand_condition():
+    """조건별 합성 세트(make_scene)의 '손가림' (이전 방식 0/6)"""
+    for i in range(6):
+        img, gt, _ = make_scene("손가림", seed=i)
+        found = detect(img)
+        assert found is not None and corner_error(found, gt) <= SUCCESS_RATIO, f"손가림 #{i}"
+
+
+@pytest.mark.parametrize("kind", ["빈 배경", "원·타원 물체", "무늬 배경"])
+def test_no_document_scenes(kind):
+    assert all(detect(no_document(kind, i)) is None for i in range(N))
+
+
+def _shape_scene(pts: np.ndarray) -> np.ndarray:
+    img = np.full((900, 1200, 3), 80, np.uint8)
+    cv2.fillPoly(img, [pts.astype(np.int32)], (235, 235, 235))
     return img
 
 
-def test_strict_path_fails_on_finger_notch():
-    """대안 단계가 실제로 쓰이는 상황인지 확인 (기본 단계만으로는 못 찾음)"""
-    gray, _ = preprocess(finger_on_bottom_edge(make_photo(DEFAULT_CORNERS)))
-    contours, _ = cv2.findContours(detect_edges(gray), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for c in sorted(contours, key=cv2.contourArea, reverse=True)[:5]:
-        approx = cv2.approxPolyDP(c, 0.02 * cv2.arcLength(c, True), True)
-        assert not (len(approx) == 4 and cv2.isContourConvex(approx))
+@pytest.mark.parametrize("sides", [3, 5, 6, 8])
+def test_polygons_rejected(sides):
+    """직선 변이 있지만 4각형이 아닌 물체"""
+    t = np.arange(sides) * 2 * np.pi / sides + 0.3
+    assert detect(_shape_scene(np.stack([600 + 330 * np.cos(t), 450 + 330 * np.sin(t)], 1))) is None
 
 
-@pytest.mark.parametrize("shadow", [False, True])
-def test_finger_notch_recovered(shadow):
-    found = detect(finger_on_bottom_edge(make_photo(DEFAULT_CORNERS, shadow=shadow)))
-    assert found is not None
-    err = np.linalg.norm(found - DEFAULT_CORNERS, axis=1).max()
-    assert err < 15, f"꼭짓점 오차 {err:.1f}px"
+def test_l_shape_rejected():
+    """L자 모양은 네 변으로 복원한 4각형 둘레의 1/4 이 비어 있어 SIDE_MIN_COVERAGE 에 걸린다"""
+    x0, y0, s = 330, 180, 540
+    pts = np.array([[x0, y0], [x0 + s / 2, y0], [x0 + s / 2, y0 + s / 2], [x0 + s, y0 + s / 2],
+                    [x0 + s, y0 + s], [x0, y0 + s]])
+    assert detect(_shape_scene(pts)) is None
 
 
-def test_occluded_corner_restored():
-    """엄지가 우하단 모서리를 가린 사진 → 껍질이 5각형이 되고, 양옆 변을 연장해 꼭짓점을 복원한다"""
-    img = make_photo(DEFAULT_CORNERS, shadow=False)
-    br = DEFAULT_CORNERS[2].astype(int)
-    cv2.ellipse(img, (int(br[0]) - 10, int(br[1]) + 10), (70, 90), 30, 0, 360, FINGER_COLOR, -1)
-    found = detect(img)
-    assert found is not None
-    err = np.linalg.norm(found - DEFAULT_CORNERS, axis=1).max()
-    assert err < 15, f"꼭짓점 오차 {err:.1f}px"
+def test_quad_from_sides_geometry():
+    """한 변 가운데가 파이고 모서리 하나가 잘린 사각형 윤곽선 → 원래 네 꼭짓점"""
+    from scanner.detect import _quad_from_sides
 
-
-def test_restore_cut_corner_geometry():
-    from scanner.detect import _restore_cut_corner
-    # 정사각형 (0,0)-(100,100) 의 우하단을 10px 잘라낸 5각형
-    pent = np.array([[0, 0], [100, 0], [100, 90], [90, 100], [0, 100]], np.float32)
-    quad = _restore_cut_corner(pent)
-    np.testing.assert_allclose(order_corners(quad), [[0, 0], [100, 0], [100, 100], [0, 100]], atol=1e-4)
-
-
-@pytest.mark.parametrize("shape", ["circle", "ellipse"])
-def test_round_objects_rejected(shape):
-    """대안 단계가 원·타원(접시, 시계 등)을 문서로 오인하지 않는다"""
-    img = np.full((900, 1200, 3), 80, np.uint8)
-    if shape == "circle":
-        cv2.circle(img, (600, 450), 300, (240, 240, 240), -1)
-    else:
-        cv2.ellipse(img, (600, 450), (400, 250), 15, 0, 360, (240, 240, 240), -1)
-    assert detect(img) is None
-
-
-def test_document_merged_with_bright_border_region_rejected():
-    """문서 오른쪽 배경이 문서와 같은 밝기라 화면 끝까지 붙어 버리면 엉뚱한 사각형 대신 None"""
-    img = make_photo(DEFAULT_CORNERS, shadow=False)
-    h, w = img.shape[:2]
-    band = np.zeros((h, w), np.uint8)
-    cv2.fillPoly(band, [np.array([[880, 0], [w, 0], [w, h], [960, h]], np.int32)], 255)
-    doc = np.zeros((h, w), np.uint8)
-    cv2.fillPoly(doc, [DEFAULT_CORNERS.astype(np.int32)], 255)
-    img[(band > 0) & (doc == 0)] = 238
-    assert detect(img) is None
+    contour = np.array([
+        [100, 100], [300, 100], [300, 150], [360, 150], [360, 100], [500, 100],  # 위 변이 파임
+        [500, 380], [480, 400],                                                  # 우하단이 잘림
+        [100, 400],
+    ], np.int32).reshape(-1, 1, 2)
+    quad = _quad_from_sides(contour, 600, 500)
+    np.testing.assert_allclose(order_corners(quad), [[100, 100], [500, 100], [500, 400], [100, 400]], atol=0.5)
